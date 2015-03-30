@@ -1,0 +1,131 @@
+#!/usr/bin/perl
+# Copyright Zaytsev Denis
+# Distributed under the terms of the GNU General Public License v2
+
+use Term::ANSIColor qw(:constants);
+
+sub print_table {
+        print BOLD, BLUE "TABLE ".$table_name;
+        print "----------------------------------------------------------------------"; print RESET; print "\n";
+                foreach $e (@defchain_arr) {
+                        print BOLD, BLACK, ON_CYAN, "#  ".$e; print RESET; print "\n";
+                        $rule_num=1;
+                        foreach $e1 (@{$e}) {
+                                $e1=~ s/$e\s//;
+                                $space="   ";
+                                $space_num=length($rule_num);
+                                $space=~ s/\s{$space_num}//;
+                                if ($e1=~ m/ACCEPT/) { print GREEN, $rule_num.$space.$e1; }
+                                elsif ($e1=~ m/DROP/) { print RED, $rule_num.$space.$e1; }
+                                elsif ($e1=~ m/REJECT/) { print RED, $rule_num.$space.$e1; }
+                                elsif ($e1=~ m/LOG/) { print YELLOW, $rule_num.$space.$e1; }
+                                else  { print $rule_num.$space.$e1; }
+                                print RESET;
+                                $rule_num++;
+                        }
+                        if ($defchain{$e} eq "DROP" ) { print BOLD, ON_RED, "#  default ".$defchain{$e};}
+                        elsif ($defchain{$e} eq "ACCEPT" ) { print BOLD, ON_GREEN, "#  default ".$defchain{$e};}
+                        else { print BOLD, "#  default ".$defchain{$e};}
+                        print RESET; print "\n";
+                        print "\n";
+                }
+                foreach $e (@userchain_arr) {
+                        print BLACK, ON_CYAN, "#  ".$e." (user chain)"; print RESET; print "\n";
+                        $rule_num=1;
+                        foreach $e1 (@{$e}) {
+                                $e1=~ s/$e\s//;
+                                $space="   ";
+                                $space_num=length($rule_num);
+                                $space=~ s/\s{$space_num}//;
+                                if ($e1=~ m/ACCEPT/) { print GREEN, $rule_num.$space.$e1; }
+                                elsif ($e1=~ m/DROP/) { print RED, $rule_num.$space.$e1; }
+                                elsif ($e1=~ m/REJECT/) { print RED, $rule_num.$space.$e1; }
+                                elsif ($e1=~ m/LOG/) { print YELLOW, $rule_num.$space.$e1; }
+                                else  { print $rule_num.$space.$e1; }
+                                print RESET;
+                                $rule_num++;
+                        }
+                        print "\n";
+                }
+        print "\n";
+        foreach $e (@defchain_arr) { undef @{$e}; }
+        foreach $e (@userchain_arr) { undef @{$e}; }
+        undef @defchain_arr;
+        undef @chain;
+        undef %defchain;
+        undef @userchain_arr;
+        undef @rules_arr;
+        undef $table_name;
+}
+
+$arg=$ARGV[0];
+$arg1=$ARGV[1];
+
+if (!$arg) {
+        # nothing doing, not filter
+}
+elsif ($arg eq "c")  { $arg1=$arg; }
+elsif ($arg eq "n")  { $ftable="nat"; }
+elsif ($arg eq "npo"){ $ftable="nat"; $fchain="POSTROUTING"; }
+elsif ($arg eq "npr"){ $ftable="nat"; $fchain="PREROUTING"; }
+elsif ($arg eq "no") { $ftable="nat"; $fchain="OUTPUT"; }
+elsif ($arg eq "f")  { $ftable="filter"; }
+elsif ($arg eq "fi") { $ftable="filter"; $fchain="INPUT"; }
+elsif ($arg eq "ff") { $ftable="filter"; $fchain="FORWARD"; }
+elsif ($arg eq "fo") { $ftable="filter"; $fchain="OUTPUT"; }
+elsif ($arg =~ m/^u/io) { $arg=~ s/^u//; $ftable="filter"; $fchain=$arg; }
+else {
+        print " n   -all table nat\n";
+        print " npo -table nat chain postrouting\n";
+        print " npr -table nat chain prerouting\n";
+        print " no  -table nat chain output\n";
+        print " f   -all table filter\n";
+        print " fi  -table filter chain input\n";
+        print " ff  -table filter chain forward\n";
+        print " fo  -table filter chain output\n";
+        print " u<user chain name> -table filter chain user's\n";
+        print " whithout parametrs all iptables\n";
+        print " c   -enable counters\n";
+        exit;
+}
+
+open (CMD, "iptables-save -c |");
+$table_num=1;
+while (<CMD>) {
+        if ($_=~ m/^\*$ftable/io) {
+                $table_name=$_;
+                $table_name=~ s/\*//g;
+                $table_num++;
+        }
+        unless ($_ eq "COMMIT\n") {
+                if ($table_name) {
+                        if ($_=~ m/^:$fchain/io) {
+                                $chain=$_;
+                                $chain=~ s/://g;
+                                @chain = split /\s/, $chain;
+                                if ($chain[1] ne "-") {
+                                        push (@defchain_arr, $chain[0]);
+                                        $defchain{$chain[0]}=$chain[1];
+                                } else {
+                                        push (@userchain_arr, $chain[0]);
+                                }
+                        }
+                        if ($_=~ m/^\[/io) {
+                                $rule=$_;
+                                $rule=~ s/-A //;
+                                @rules_arr = split /\s/, $rule;
+                                unless ($arg1 eq "c") {
+                                        $rule=~ s/^\[.*?]//;
+                                        $rule=~ s/\s//;
+                                }
+                                push (@{$rules_arr[1]}, $rule);
+                        }
+                }
+        }
+        else {
+                if ($table_name) {
+                        print_table;
+                }
+        }
+}
+close (CMD);
