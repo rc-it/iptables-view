@@ -1,5 +1,5 @@
 #!/usr/bin/perl
-# Copyright Zaytsev Denis
+# Copyright NIMDA Group Ltd.
 # Distributed under the terms of the GNU General Public License v2
 
 use Term::ANSIColor qw(:constants);
